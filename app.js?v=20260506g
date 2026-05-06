@@ -1,0 +1,571 @@
+/* ─────────────────────────────────────────
+   Kairos — App Logic
+   Avery Lake, 2026
+   kairos.averylakeofficial.com
+
+   The O is special.
+   It arrives upright. Click it again to tilt it.
+   That is the final gesture.
+───────────────────────────────────────── */
+
+
+/* ── Letter configuration ─────────────────
+   Scrambled starting positions: no letter starts
+   in its "home" quadrant, so LOVE isn't readable
+   until assembled.
+
+   Target grid (Robert Indiana, 1964):
+     L  O
+     V  E
+   O tilts +23° clockwise on its second click.
+────────────────────────────────────────── */
+const LETTER_DATA = [
+  {
+    id: 'L', char: 'L',
+    startXPct: 68, startYPct: 11,   /* top-right — not home */
+    dx: '-4.8rem', dy: '4.2rem', dur: '13.5s',
+    rotate: 0,
+    isO: false
+  },
+  {
+    id: 'O', char: 'O',
+    startXPct: 9,  startYPct: 68,   /* bottom-left — not home */
+    dx: '5.0rem',  dy: '-4.5rem', dur: '15.5s',
+    rotate: 45,    /* clockwise, rightward 45° — after Robert Indiana */
+    isO: true
+  },
+  {
+    id: 'V', char: 'V',
+    startXPct: 72, startYPct: 70,   /* bottom-right — not home */
+    dx: '-4.2rem', dy: '-5.0rem', dur: '12s',
+    rotate: 0,
+    isO: false
+  },
+  {
+    id: 'E', char: 'E',
+    startXPct: 11, startYPct: 14,   /* top-left — not home */
+    dx: '4.5rem',  dy: '4.8rem',  dur: '14.5s',
+    rotate: 0,
+    isO: false
+  }
+];
+
+/* ── State ───────────────────────────────── */
+let otherCount    = 0;     /* L, V, E placed */
+let oState        = 'floating'; /* 'floating' | 'arriving' | 'upright' | 'tilted' */
+let hasInteracted = false;
+let soundOn       = true;
+
+const letterElements = {};
+
+/* ── DOM refs ────────────────────────────── */
+const stage           = document.getElementById('letters-stage');
+const fogContainer    = document.getElementById('fog-container');
+const bloom           = document.getElementById('warmth-bloom');
+const revelation      = document.getElementById('revelation');
+const revLines        = Array.from(revelation.querySelectorAll('.revelation-line'));
+const artifactPrompt  = document.getElementById('artifact-prompt');
+const artifactBtn     = document.getElementById('artifact-btn');
+const soundtrack      = document.getElementById('soundtrack');
+const soundBtn        = document.getElementById('sound-button');
+const homeBtn         = document.getElementById('home-button');
+
+/* ── Letter size ─────────────────────────────
+   Each letter is a square PNG; S = display size.
+   Grid = 2S × 2S, centred on screen.
+────────────────────────────────────────── */
+function getLetterSize() {
+  const vmin = Math.min(window.innerWidth, window.innerHeight);
+  /* Target: grid (~2S wide) occupies ~44% of viewport min dim */
+  return Math.min(Math.max(140, vmin * 0.22), 280);
+}
+
+/* ── Indiana LOVE grid target positions ────
+   Invisible 2×2 grid centred on screen.
+   Each letter's GLYPH CENTER is placed at the grid point,
+   not the box corner. The grid spacing matches the font
+   metrics so glyphs touch at the centre cross.
+────────────────────────────────────────── */
+function getTargets() {
+  const vw  = window.innerWidth;
+  const vh  = window.innerHeight;
+  const S   = getLetterSize();
+  const cx  = vw / 2;
+  /* shift grid up slightly on short screens */
+  const cy  = vh < 600 ? vh / 2 - S * 0.08 : vh / 2;
+
+  /*
+    Compute the actual CSS font-size (mirrors the clamp in CSS).
+    Each glyph is centred inside its S×S box via flexbox.
+    We space glyph centres by ~half the glyph dimension so
+    adjacent glyphs touch at the centre cross.
+  */
+  const vmin     = Math.min(vw, vh);
+  const fontSize = Math.min(Math.max(72, vmin * 0.13), 148);
+
+  /* Half the centre-to-centre distance for adjacent letters.
+     Bodoni 900 capitals: width ≈ 0.58em, cap-height ≈ 0.70em.
+     We want edges to just touch, so spacing = glyph dimension. */
+  const halfW = fontSize * 0.29;  /* horizontal: half of avg glyph width */
+  const halfH = fontSize * 0.35;  /* vertical: half of cap-height */
+
+  /* Position box top-left so the glyph centre (box centre) hits the grid point */
+  return {
+    L: { left: cx - halfW - S / 2, top: cy - halfH - S / 2 },
+    O: { left: cx + halfW - S / 2, top: cy - halfH - S / 2 },
+    V: { left: cx - halfW - S / 2, top: cy + halfH - S / 2 },
+    E: { left: cx + halfW - S / 2, top: cy + halfH - S / 2 },
+    S
+  };
+}
+
+/* ── Check if experience is complete ────── */
+function checkAllPlaced() {
+  if (otherCount === 3 && oState === 'tilted') {
+    setTimeout(onAllPlaced, 380);
+  }
+}
+
+/* ── Build ambient fog particles ─────────── */
+function buildFog() {
+  fogContainer.innerHTML = '';
+  for (let i = 0; i < 22; i++) {
+    const m     = document.createElement('span');
+    m.className = 'mote';
+    const x     = Math.random() * 100;
+    const y     = Math.random() * 100;
+    const dx    = (Math.random() - 0.5) * 90;
+    const dy    = -(Math.random() * 70 + 20);
+    const dur   = (Math.random() * 14 + 11).toFixed(1) + 's';
+    const delay = (Math.random() * 16).toFixed(1) + 's';
+    const size  = Math.random() < 0.25 ? 3 : 2;
+    m.style.cssText = `
+      left:${x}%; top:${y}%;
+      width:${size}px; height:${size}px;
+      --mx:${dx}px; --my:${dy}px;
+      animation-duration:${dur};
+      animation-delay:-${delay};
+    `;
+    fogContainer.appendChild(m);
+  }
+}
+
+/* ── Build letter elements ────────────────── */
+function buildLetters() {
+  stage.innerHTML = '';
+  otherCount    = 0;
+  oState        = 'floating';
+  hasInteracted = false;
+
+  LETTER_DATA.forEach(data => {
+    const S        = getLetterSize();
+    const el       = document.createElement('div');
+    el.className   = 'letter floating';
+    el.dataset.id  = data.id;
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+    el.setAttribute('aria-label', `Letter ${data.id}`);
+
+    /* Size: one cell of the Indiana 2×2 grid */
+    el.style.width  = S + 'px';
+    el.style.height = S + 'px';
+
+    /*
+      Primary: extracted Indiana letter PNG (amber on transparent).
+      Fallback: Bodoni Moda text if PNGs haven't been generated yet.
+    */
+    const img = document.createElement('img');
+    img.src       = `assets/letter-${data.id}.png`;
+    img.alt       = data.char;
+    img.draggable = false;
+    img.style.cssText = 'width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;';
+    img.onerror = () => {
+      img.style.display = 'none';
+      el.classList.add('letter--text');
+      el.textContent = data.char;
+    };
+    el.appendChild(img);
+
+    el.style.left = data.startXPct + '%';
+    el.style.top  = data.startYPct + '%';
+    el.style.setProperty('--dx',  data.dx);
+    el.style.setProperty('--dy',  data.dy);
+    el.style.setProperty('--dur', data.dur);
+
+    el.addEventListener('click',   () => handleLetterClick(el, data));
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        handleLetterClick(el, data);
+      }
+    });
+
+    stage.appendChild(el);
+    letterElements[data.id] = el;
+  });
+}
+
+/* ── FLIP helper: freeze current visual pos ─ */
+function freezePosition(el) {
+  el.style.animationPlayState = 'paused';
+  const rect = el.getBoundingClientRect();
+  el.style.left      = rect.left + 'px';
+  el.style.top       = rect.top  + 'px';
+  el.style.transform = '';
+  el.classList.remove('floating');
+  el.style.animationPlayState = '';
+}
+
+/* ── Handle any letter click ─────────────── */
+function handleLetterClick(el, data) {
+  /* O in upright state: second click tilts it */
+  if (data.isO && oState === 'upright') {
+    handleOTilt(el, data);
+    return;
+  }
+
+  /* Ignore if already placed or mid-animation */
+  if (
+    el.classList.contains('placed') ||
+    el.classList.contains('placing') ||
+    el.classList.contains('placed-upright') ||
+    (data.isO && oState === 'arriving')
+  ) return;
+
+  /* First interaction */
+  if (!hasInteracted) {
+    hasInteracted = true;
+    startSound();
+  }
+
+  /* ── Freeze current visual position (FLIP) */
+  freezePosition(el);
+  el.removeAttribute('tabindex');
+
+  /* ── Double rAF: settle, then animate to target */
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const targets = getTargets();
+      const target  = targets[data.id];
+
+      el.classList.add('placing');
+      el.style.left = target.left + 'px';
+      el.style.top  = target.top  + 'px';
+      /* no rotation yet — O arrives upright */
+      el.style.transform = 'none';
+
+      function onArrival(e) {
+        if (e.propertyName !== 'left') return;
+        el.removeEventListener('transitionend', onArrival);
+        el.classList.remove('placing');
+
+        if (data.isO) {
+          /* O lands upright — stays interactive for tilt */
+          el.classList.add('placed-upright');
+          el.setAttribute('tabindex', '0');
+          oState = 'upright';
+        } else {
+          el.classList.add('placed');
+          el.style.animation = '';
+          otherCount++;
+          checkAllPlaced();
+        }
+      }
+      el.addEventListener('transitionend', onArrival);
+    });
+  });
+}
+
+/* ── O tilt: second click ─────────────────
+   Rotates O from upright to +23° (clockwise, rightward).
+   This is the final gesture that completes LOVE.
+────────────────────────────────────────── */
+function handleOTilt(el, data) {
+  if (oState !== 'upright') return;
+  oState = 'tilting';
+
+  el.classList.remove('placed-upright');
+  el.removeAttribute('tabindex');
+  el.style.pointerEvents = 'none';
+
+  /* Add placing class for smooth rotation transition */
+  el.classList.add('placing');
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      el.style.transform = `rotate(${data.rotate}deg)`;
+
+      function onTilt(e) {
+        if (e.propertyName !== 'transform') return;
+        el.removeEventListener('transitionend', onTilt);
+        el.classList.remove('placing');
+        el.classList.add('placed');
+        el.style.animation = '';
+        oState = 'tilted';
+        checkAllPlaced();
+      }
+      el.addEventListener('transitionend', onTilt);
+    });
+  });
+}
+
+/* ── All placed: kairos moment ───────────── */
+function onAllPlaced() {
+  bloom.classList.add('active');
+  /* Dim letters before revelation text appears */
+  setTimeout(dimLetters, 1200);
+  setTimeout(startRevelation, 2600);
+}
+
+/* ── Dim LOVE letters ─────────────────────
+   Letters fade to near-invisible so revelation
+   text is clearly readable.
+────────────────────────────────────────── */
+function dimLetters() {
+  LETTER_DATA.forEach(data => {
+    const el = letterElements[data.id];
+    if (!el) return;
+    el.style.opacity            = '0.06';
+    el.style.filter             = 'none';
+    el.style.animationPlayState = 'paused';
+  });
+}
+
+/* ── Revelation text sequence ─────────────
+   Remember? → You are love → You are loved
+────────────────────────────────────────── */
+function startRevelation() {
+  const DELAYS = [0, 2600, 5000];
+
+  revLines.forEach((line, i) => {
+    setTimeout(() => line.classList.add('visible'), DELAYS[i]);
+  });
+
+  setTimeout(() => {
+    artifactPrompt.classList.add('visible');
+  }, DELAYS[DELAYS.length - 1] + 2400);
+}
+
+/* ── Artifact generation ─────────────────
+   2400 × 3200px PNG.
+   Warm dark ground, LOVE arrangement centered and touching,
+   Bodoni-style rendering, "Kairos (1/1)" centered at footer.
+────────────────────────────────────────── */
+async function generateArtifact() {
+  try {
+    await document.fonts.load('900 500px "Bodoni Moda"');
+  } catch (_) { /* proceed with fallback */ }
+
+  const W  = 2400;
+  const H  = 3200;
+  const canvas = document.createElement('canvas');
+  canvas.width  = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  /* Background */
+  ctx.fillStyle = '#0a0806';
+  ctx.fillRect(0, 0, W, H);
+
+  /* Subtle warm centre glow */
+  const bgGlow = ctx.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, 980);
+  bgGlow.addColorStop(0, 'rgba(232, 200, 122, 0.10)');
+  bgGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = bgGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  /* ── LOVE — Indiana arrangement, letters touching ──
+     Invisible cross at (cx, cy) divides the canvas into 4 quadrants.
+
+     Alignment rules (like Indiana's original):
+       • Left column (L, V): right visual edge → cx
+       • Right column (O, E): left visual edge → cx
+       • Top row (L, O): baseline (bottom of caps) → cy
+       • Bottom row (V, E): cap-top (top of caps) → cy
+
+     This uses textAlign + actualBoundingBox for pixel-perfect placement.
+  ──────────────────────────────────────────────── */
+  const FS  = 500;
+  const cx  = W / 2;
+  const cy  = H / 2 - 60;  /* slightly above centre for visual balance */
+
+  ctx.font         = `900 ${FS}px "Bodoni Moda", Georgia, serif`;
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle    = '#e8c87a';
+
+  /* Measure cap-height from a capital letter */
+  const mH = ctx.measureText('H');
+  const capH = mH.actualBoundingBoxAscent;
+
+  /*
+    Top row: baseline at cy  →  bottom of capitals at cy
+    Bottom row: baseline at cy + capH  →  top of capitals at cy
+    (because top = baseline − capH = (cy + capH) − capH = cy)
+  */
+  const topBase = cy;
+  const botBase = cy + capH;
+
+  /* — L (top-left): right-aligned at cx — */
+  ctx.textAlign = 'right';
+  ctx.fillText('L', cx, topBase);
+
+  /* — O (top-right): left-aligned at cx, rotated 45° — */
+  ctx.textAlign = 'left';
+  const mO = ctx.measureText('O');
+  /* O's visual centre (relative to draw point cx, topBase) */
+  const oVisCx = cx + mO.actualBoundingBoxRight / 2;
+  const oVisCy = topBase - mO.actualBoundingBoxAscent / 2;
+  ctx.save();
+  ctx.translate(oVisCx, oVisCy);
+  ctx.rotate(45 * Math.PI / 180);
+  ctx.translate(-oVisCx, -oVisCy);
+  ctx.fillText('O', cx, topBase);
+  ctx.restore();
+
+  /* — V (bottom-left): right-aligned at cx — */
+  ctx.textAlign = 'right';
+  ctx.fillText('V', cx, botBase);
+
+  /* — E (bottom-right): left-aligned at cx — */
+  ctx.textAlign = 'left';
+  ctx.fillText('E', cx, botBase);
+
+  /* Soft letter glow overlay */
+  const lGlow = ctx.createRadialGradient(cx, cy, 0, cx, cy, capH * 2);
+  lGlow.addColorStop(0, 'rgba(232, 200, 122, 0.09)');
+  lGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = lGlow;
+  ctx.fillRect(0, 0, W, H);
+
+  /* ── Footer labels ───────────────────────── */
+
+  /* "Kairos (1/1)" — centered, bottom area */
+  ctx.font      = 'italic 300 32px "Cormorant Garamond", Georgia, serif';
+  ctx.fillStyle = 'rgba(240, 232, 216, 0.38)';
+  ctx.textAlign = 'center';
+  ctx.fillText('Kairos (1/1)', cx, H - 80);
+
+  /* "Avery Lake" — bottom right */
+  ctx.font      = '300 26px "Cormorant Garamond", Georgia, serif';
+  ctx.textAlign = 'right';
+  ctx.fillStyle = 'rgba(240, 232, 216, 0.28)';
+  ctx.fillText('Avery Lake', W - 80, H - 80);
+
+  /* Hash — bottom left */
+  const hash = '#' + Array.from(
+    crypto.getRandomValues(new Uint8Array(4))
+  ).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  ctx.font      = '300 20px "Courier New", monospace';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = 'rgba(240, 232, 216, 0.16)';
+  ctx.fillText(hash, 80, H - 80);
+
+  /* Download */
+  canvas.toBlob(blob => {
+    if (!blob) return;
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `KAIROS_ARTIFACT_${hash.slice(1).toUpperCase()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 12000);
+  }, 'image/png');
+}
+
+/* ── Sound ───────────────────────────────── */
+function startSound() {
+  if (!soundOn) return;
+  soundtrack.volume = 0;
+  soundtrack.play().catch(() => {});
+  let vol = 0;
+  const ramp = setInterval(() => {
+    vol = Math.min(0.38, vol + 0.018);
+    soundtrack.volume = vol;
+    if (vol >= 0.38) clearInterval(ramp);
+  }, 160);
+}
+
+function stopSound() {
+  let vol = soundtrack.volume;
+  const ramp = setInterval(() => {
+    vol = Math.max(0, vol - 0.04);
+    soundtrack.volume = vol;
+    if (vol <= 0) {
+      clearInterval(ramp);
+      soundtrack.pause();
+      soundtrack.currentTime = 0;
+    }
+  }, 80);
+}
+
+soundBtn.addEventListener('click', () => {
+  soundOn = !soundOn;
+  soundBtn.setAttribute('aria-pressed', soundOn ? 'true' : 'false');
+  soundBtn.setAttribute('aria-label',   soundOn ? 'Turn sound off' : 'Turn sound on');
+  soundOn ? startSound() : stopSound();
+});
+
+/* ── Restart ─────────────────────────────── */
+function restartExperience() {
+  stopSound();
+  soundOn = true;
+  soundBtn.setAttribute('aria-pressed', 'true');
+  soundBtn.setAttribute('aria-label', 'Turn sound off');
+
+  bloom.classList.remove('active');
+  revLines.forEach(l => l.classList.remove('visible'));
+  artifactPrompt.classList.remove('visible');
+
+  buildLetters();
+}
+
+homeBtn.addEventListener('click', restartExperience);
+
+artifactBtn.addEventListener('click', () => {
+  const ua = navigator.userAgent || '';
+  const isInApp = /FBAN|FBAV|Instagram|LinkedInApp|TikTok|Snapchat|Twitter\/|Line\//.test(ua);
+  
+  if (isInApp) {
+    const url = location.href;
+    document.body.innerHTML = `
+      <div class="inapp-notice">
+        <h2>Open in your browser</h2>
+        <p>To keep your artifact, open Kairos in Safari or Chrome.</p>
+        <div class="inapp-url" id="copy-url" title="Tap to copy">${url}</div>
+        <p style="font-size:11px; color:var(--text-dim); letter-spacing:1px;">Tap the address above to copy it.</p>
+      </div>
+    `;
+    document.getElementById('copy-url').addEventListener('click', () => {
+      navigator.clipboard.writeText(url).catch(() => {});
+      document.getElementById('copy-url').textContent = 'Copied.';
+    });
+    return;
+  }
+  
+  generateArtifact();
+});
+
+/* ── Reposition & resize placed letters on resize ─── */
+window.addEventListener('resize', () => {
+  const targets = getTargets();
+  const S       = getLetterSize();
+  LETTER_DATA.forEach(data => {
+    const el = letterElements[data.id];
+    if (!el) return;
+    /* Always keep size current */
+    el.style.width  = S + 'px';
+    el.style.height = S + 'px';
+    const isPlaced  = el.classList.contains('placed');
+    const isUpright = el.classList.contains('placed-upright');
+    if (!isPlaced && !isUpright) return;
+    el.style.left = targets[data.id].left + 'px';
+    el.style.top  = targets[data.id].top  + 'px';
+  });
+});
+
+/* ── Init ────────────────────────────────── */
+buildFog();
+buildLetters();

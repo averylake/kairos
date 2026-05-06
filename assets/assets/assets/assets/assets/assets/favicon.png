@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kairos | Avery Lake</title>
+  <meta name="description" content="Kairos is an Avery Lake experiment in the moment of remembering what was never lost.">
+  <link rel="canonical" href="https://kairos.averylakeofficial.com/">
+  <meta name="robots" content="index,follow">
+  <meta name="author" content="Avery Lake">
+  <meta name="keywords" content="Avery Lake, Kairos, interactive art, digital art, love, agape, unconditional love, digital ritual, remember">
+
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="Avery Lake">
+  <meta property="og:title" content="Kairos | Avery Lake">
+  <meta property="og:description" content="A quiet ritual about remembering what was never lost. Bring the letters together.">
+  <meta property="og:url" content="https://kairos.averylakeofficial.com/">
+  <meta property="og:image" content="https://kairos.averylakeofficial.com/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Four letters scattered in warm amber light for Kairos by Avery Lake.">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Kairos | Avery Lake">
+  <meta name="twitter:description" content="A quiet ritual about remembering what was never lost.">
+  <meta name="twitter:image" content="https://kairos.averylakeofficial.com/assets/og.png">
+  <meta name="theme-color" content="#0a0806">
+
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/favicon.png" type="image/png" sizes="64x64">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:opsz,wght@96,900&family=Lora:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="styles.css?v=20260506g">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CreativeWork",
+    "name": "Kairos",
+    "url": "https://kairos.averylakeofficial.com/",
+    "image": "https://kairos.averylakeofficial.com/assets/og.png",
+    "creator": {
+      "@type": "Person",
+      "name": "Avery Lake",
+      "url": "https://www.averylakeofficial.com/"
+    },
+    "description": "An interactive art experiment about the moment of remembering unconditional love.",
+    "genre": "Interactive digital art"
+  }
+  </script>
+</head>
+<body>
+  <main class="experience" aria-labelledby="page-title">
+    <h1 id="page-title" class="sr-only">Kairos by Avery Lake</h1>
+
+    <header class="topbar" aria-label="Experience controls">
+      <button class="brand-button" id="home-button" type="button" aria-label="Restart Kairos">
+        Kairos
+      </button>
+      <button class="sound-toggle" id="sound-button" type="button" aria-label="Turn sound off" aria-pressed="true">
+        <span class="sound-toggle__track" aria-hidden="true">
+          <span class="sound-toggle__thumb"></span>
+        </span>
+        <span class="sr-only">Sound</span>
+      </button>
+    </header>
+
+    <audio id="soundtrack" src="assets/Kairos.mp3" preload="none" loop></audio>
+
+    <div class="fog-container" id="fog-container" aria-hidden="true"></div>
+    <div class="warmth-bloom" id="warmth-bloom" aria-hidden="true"></div>
+    <div class="letters-stage" id="letters-stage" aria-hidden="true"></div>
+
+    <!-- Revelation text sequence -->
+    <div class="revelation" id="revelation" aria-live="polite" role="status">
+      <p class="revelation-line" id="r-line-0">Remember?</p>
+      <p class="revelation-line" id="r-line-1">You are love</p>
+      <p class="revelation-line" id="r-line-2">You are loved</p>
+    </div>
+
+    <!-- Artifact + artist statement -->
+    <div class="artifact-prompt" id="artifact-prompt">
+      <button class="artifact-btn" id="artifact-btn" type="button">
+        Keep this moment
+      </button>
+      <p class="artifact-note">
+        A signed edition is available by
+        <a href="mailto:hello@averylakeofficial.com?subject=Kairos%20%E2%80%94%20signed%20edition%20inquiry" class="artifact-link">inquiry</a>.
+      </p>
+      <p class="artist-statement">
+        Kairos is an Avery Lake experiment in the moment of remembering what was never lost.
+        The four letters have always been here. Scattered, they are only letters.
+        Together, they are what you already are.
+      </p>
+    </div>
+
+    <footer class="footer">
+      <a href="https://www.averylakeofficial.com/" target="_blank" rel="noopener noreferrer" class="footer-link">
+        An Avery Lake Experiment
+      </a>
+    </footer>
+  </main>
+
+  <script src="app.js?v=20260506g"></script>
+</body>
+</html>
